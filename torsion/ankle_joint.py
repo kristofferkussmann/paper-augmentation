@@ -2,7 +2,7 @@ from skimage.measure import regionprops, label
 import numpy as np
 #from . import get_centroid, write_image, bresenhamline
 from torsion import get_centroid, write_image, bresenhamline
-from mask import get_contour_points, get_most_distal_layer
+from mask import get_contour_points, get_most_distal_layer_ankle
 from vector import get_angle_between_vector_and_plane
 
 
@@ -134,9 +134,9 @@ def calc_pma(mask_t, mask_f, out_t=None):
     # SECOND STEP: FIND THE REFERENCE LINE BETWEEN MOST DISTAL POINTS OF TIBIA AND FIBULA
 
     # find index of the layer with the most distal point of the tibia
-    dist_layer_tibia = get_most_distal_layer(mask_t)
+    dist_layer_tibia = get_most_distal_layer_ankle(mask_t)
     # find index of the layer with the most distal point of the fibula
-    dist_layer_fibula = get_most_distal_layer(mask_f)
+    dist_layer_fibula = get_most_distal_layer_ankle(mask_f)
     # calculate center of mass of tibia und fibula on the corresponding layers
     com_tibia = get_centroid(mask_t[dist_layer_tibia])
     com_fibula = get_centroid(mask_f[dist_layer_fibula])

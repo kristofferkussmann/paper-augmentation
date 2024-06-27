@@ -250,11 +250,18 @@ def sep_seg(mask, value):
     return mask_left, mask_right
 
 
-def get_most_distal_layer(mask):
+def get_diameter(mask):
     """
-    returns the layer with the most distal point of the mask
+    returns the diameter of the given 2D mask
+    """
+    props = regionprops(label(mask))
+    diameter = props[0].equivalent_diameter
+    return diameter
 
-    current constraint: this function assumes that the z-coordinate of the most distal layer is 0
+
+def get_most_distal_layer_ankle(mask):
+    """
+    returns the layer with the most distal point of the ankle mask
 
     Parameters
     ----------
@@ -264,14 +271,14 @@ def get_most_distal_layer(mask):
     Returns
     -------
     int
-        z coord of the layer
+        z coord of the most distal layer
     """
 
     # z-coordinate of the layer with the most distal point of the mask
     z_coord_layer = 0
 
     # check whether slice with index 0 or max_index is the most distal slice of the MR image
-    # assume that in the most distal slice of the measurement there is no mask but in the most proximal slice there is
+    # assume that in the most distal slice of the ankle measurement there is no mask but in the most proximal slice there is
     if mask[len(mask) - 1].max() == 1:
         # max_index corresponds to most proximal layer
         # start iterating from index 0
@@ -286,5 +293,78 @@ def get_most_distal_layer(mask):
             if mask[k].max() == 1:
                 z_coord_layer = k
                 break
+
+    return z_coord_layer
+
+
+def get_most_distal_layer_hip(mask):
+    """
+    returns the layer with the most distal point of the hip mask
+
+    Parameters
+    ----------
+    mask : array
+        mask as 3D array
+
+    Returns
+    -------
+    int
+        z coord of the most distal layer
+    """
+
+    # z-coordinate of the layer with the most distal point of the mask
+    z_coord_layer = 0
+
+    # check whether slice with index 0 or max_index is the most distal slice of the MR image
+    # assume that in the most proximal slice of the hip measurement there is no mask but in the most distal slice there is
+    if mask[len(mask) - 1].max() == 1:
+        # max_index corresponds to most distal layer
+        z_coord_layer = len(mask) - 1
+    else:
+        # max_index corresponds to most proximal layer
+        z_coord_layer = 0
+
+    return z_coord_layer
+
+
+def get_most_proximal_layer_knee_femur(mask):
+    """
+    returns the layer with the most proximal point of the knee femur mask
+
+    Parameters
+    ----------
+    mask : array
+        mask as 3D array
+
+    Returns
+    -------
+    int
+        z coord of the most proximal layer
+    """
+
+    # z-coordinate of the layer with the most proximal point of the mask
+    z_coord_layer = 0
+
+    # assume that the diameter of the knee femur in the most distal slice is larger than in the most proximal slice
+
+    # get first candidate for most proximal slice
+    for k in range(len(mask)):
+        if mask[k].max() == 1:
+            z_candidate_1 = k
+            break
+    
+    # get second candidate for most proximal slice
+    for k in range(len(mask) - 1, -1, -1):
+        if mask[k].max() == 1:
+            z_candidate_2 = k
+            break
+    
+    diameter_1 = get_diameter(mask[z_candidate_1])
+    diameter_2 = get_diameter(mask[z_candidate_2])
+
+    if diameter_1 < diameter_2:
+        z_coord_layer = z_candidate_1
+    else:
+        z_coord_layer = z_candidate_2
 
     return z_coord_layer

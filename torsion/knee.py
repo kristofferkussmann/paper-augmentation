@@ -6,7 +6,7 @@ from torsion import write_image, bresenhamline
 #    rotate_mask_dorsal_pts, transform_pt, get_centroid
 from torsion.mask import get_contour_points, get_dorsal_mask_pt, find_notch, \
     get_layer_with_biggest_convex_area, rotate_pt, rotate_mask_vec_parallel, \
-    rotate_mask_dorsal_pts, transform_pt, get_centroid
+    rotate_mask_dorsal_pts, transform_pt, get_centroid, get_most_distal_layer_hip, get_most_proximal_layer_knee_femur
 #from .vector import get_vector, length, round_to_int
 from torsion.vector import get_vector, length, round_to_int
 
@@ -221,7 +221,7 @@ def calc_knee(bone, mask, path_out=None, path_out_ro=None, start_pt=None, thresh
         return mask, start_pt_orig, end_pt_orig
 
 
-#def calc_ccd(mask_hf, mask_kf, out_t=None):
+def calc_ccd(mask_hf, mask_kf, out_t=None):
     """
     calculates the required points and the reference lines on hip joint and knee joint level
     for the measurement of the caput-collum-diaphyseal angle
@@ -243,7 +243,47 @@ def calc_knee(bone, mask, path_out=None, path_out_ro=None, start_pt=None, thresh
 
     # FIRST STEP: FIND THE REFERENCE LINE THROUGH THE FEMUR SHAFT
 
-    # find the centroid of the most distal femur mask around the hip and the centroid of the most proximal femur mask around the hip
+    # find the centroid of the most distal femur mask around the hip
+    dist_layer_hip = get_most_distal_layer_hip(mask_hf)
+    com_dist_hip = get_centroid(mask_hf[dist_layer_hip])
+    # transform 2D mask to 3D mask
+    com_dist_hip = (dist_layer_hip, com_dist_hip[0], com_dist_hip[1])
 
+    # find the centroid of the most proximal femur mask around the hip
+    prox_layer_knee = get_most_proximal_layer_knee_femur(mask_kf)
+    com_prox_knee = get_centroid(mask_kf[prox_layer_knee])
+    # transform 2D mask to 3D mask
+    com_prox_knee = (prox_layer_knee, com_prox_knee[0], com_prox_knee[1])
+
+    # calculate vector based on these two centroids
+    vec_femur_shaft = np.array([com_prox_knee[0]-com_dist_hip[0], com_prox_knee[1]-com_dist_hip[1], com_prox_knee[2]-com_dist_hip[2]])
+
+
+    # SECOND STEP: FIND THE REFERENCE LINE THROUGH THE FEMORAL NECK
     
-    #return mask, ccd
+
+
+    # determine the dimensions of one of the masks
+    hf_shape = mask_hf.shape
+    # define the size of the gap (number of slices between hip and knee stack along the z-axis)
+    gap_size = 15
+    # create the gap with zeros
+    gap_shape = (gap_size, hf_shape[1], hf_shape[2])
+    gap = np.zeros(gap_shape)
+    # concatenate the masks with the gap in between along the z-axis
+    mask = np.concatenate((mask_kf, gap, mask_hf), axis=0)
+
+    # NEED TO MODIFY THE COORDINATES OF THE CENTROIDS FOR PLOTTING THE LINE
+
+    # add reference line between most distal points of the fibula and tibia to the mask
+    line = bresenhamline([com_dist_hip], com_prox_knee, max_iter=-1)
+    for k in range(len(line)):
+        mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
+
+    # mark centroids in the mask
+    mask[com_dist_hip] = 5
+    mask[com_prox_knee] = 5
+
+    ccd = 0
+
+    return mask, ccd
