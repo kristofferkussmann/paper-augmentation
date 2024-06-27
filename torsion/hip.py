@@ -1,15 +1,21 @@
-from . import write_image, get_centroid
-from .mask import get_contour_points, get_contour, find_notch, \
+#from . import write_image, get_centroid
+from torsion import write_image, get_centroid
+#from .mask import get_contour_points, get_contour, find_notch, \
+#    rotate_mask_dorsal_pts, transform_pt
+from torsion.mask import get_contour_points, get_contour, find_notch, \
     rotate_mask_dorsal_pts, transform_pt
-from .vector import round_to_int, length, get_vector
+#from .vector import round_to_int, length, get_vector
+from torsion.vector import round_to_int, length, get_vector
 import numpy as np
 import math
 from scipy.optimize import curve_fit
-from . import bresenhamline
+#from . import bresenhamline
+from torsion.bresenham_slope import bresenhamline
 from skimage import measure
 from skimage.transform import rotate
 import pandas as pd
-from .knee import calc_knee
+#from .knee import calc_knee
+from torsion.knee import calc_knee
 import cv2
 from scipy import optimize
 

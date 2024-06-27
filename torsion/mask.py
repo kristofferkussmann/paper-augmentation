@@ -1,5 +1,6 @@
 import SimpleITK as sitk
-from .vector import round_to_int, get_vector, angle_between
+#from .vector import round_to_int, get_vector, angle_between
+from vector import round_to_int, get_vector, angle_between
 from scipy.ndimage.morphology import binary_erosion
 from skimage.measure import regionprops, label
 from skimage.transform import rotate

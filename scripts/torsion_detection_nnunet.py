@@ -6,9 +6,23 @@ import numpy
 numpy.random.seed(0)
 
 import sys
-# sys.path.append('/home/simon/Work/mri-augmentation/Code')
+import os
+import ctypes
 
-from torsion import calc_hip, calc_knee, calc_ankle_joint
+def increase_stack_size(size):
+    if os.name == 'nt':
+        ctypes.windll.kernel32.SetThreadStackGuarantee(ctypes.byref(ctypes.c_ulong(size)))
+    else:
+        import resource
+        resource.setrlimit(resource.RLIMIT_STACK, (size, resource.RLIM_INFINITY))
+
+# Increase stack size to 8 MB (or as needed)
+increase_stack_size(8 * 1024 * 1024)
+
+# sys.path.append('/home/simon/Work/mri-augmentation/Code')
+sys.path.append('C:/Users/krist/paper_augmentation/paper-augmentation')
+
+from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma #calc_ccd
 import numpy as np
 import SimpleITK as sitk
 from skimage.measure import label
@@ -16,8 +30,8 @@ import json
 import argparse
 from pathlib import Path
 
-import resource
-resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+#import resource
+#resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
 
 def trace(frame, event, arg):
@@ -87,7 +101,7 @@ def main(file, aug):
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc hip failed for {i}, {e}')
 
-    # KNEE FEMUR
+    # KNEE FEMUR (caculation of the CCD angle is also run in this section)
     knee_array = sitk.GetArrayFromImage(knee_seg)
     knee_l = knee_array[:, :, :int(knee_array.shape[2] / 2)]
     knee_r = knee_array[:, :, int(knee_array.shape[2] / 2):]
@@ -108,11 +122,18 @@ def main(file, aug):
         else:
             tors_kfl = np.arctan((p1_kfl[1] - p2_kfl[1]) / (p1_kfl[2] - p2_kfl[2])) * 180 / np.pi
 
+        # calculate caput-collum-diaphyseal angle
+        """ mask_ccd_r, ccd_r = calc_ccd(get_largest_CC(hip_r), get_largest_CC(knee_r))
+        mask_ccd_l, ccd_l = calc_ccd(get_largest_CC(hip_l), get_largest_CC(knee_l)) """
+
         values['knee_femur_right'] = tors_kfl  # swap left and right because right image side is left patient side
         values['knee_femur_left'] = tors_kfr
 
         values['femur_right'] = tors_hl + tors_kfl
         values['femur_left'] = tors_hr + tors_kfr
+
+        """ values['ccd_right'] = ccd_l
+        values['ccd_left'] = ccd_r """
 
         mask_knee = np.concatenate((mask_kfl, mask_kfr), axis=2)
         mask_knee = sitk.GetImageFromArray(mask_knee)
@@ -121,6 +142,14 @@ def main(file, aug):
         mask_knee.SetOrigin(knee_seg.GetOrigin())
         mask_knee.SetDirection(knee_seg.GetDirection())
         sitk.WriteImage(mask_knee, str(i / f'knee_femur_ref_{aug}.nii.gz'))
+
+        """ mask_ccd = np.concatenate((mask_ccd_l, mask_ccd_r), axis=2)
+        mask_ccd = sitk.GetImageFromArray(mask_ccd)
+        mask_ccd.CopyInformation(knee_seg)
+        mask_ccd.SetSpacing(knee_seg.GetSpacing())
+        mask_ccd.SetOrigin(knee_seg.GetOrigin())
+        mask_ccd.SetDirection(knee_seg.GetDirection())
+        sitk.WriteImage(mask_knee_ccd, str(i / f'hip_knee_femur_ref_ccd_{aug}.nii.gz')) """
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc knee/f failed for {i}, {e}')
 
@@ -172,14 +201,22 @@ def main(file, aug):
         mask_ar, p1_ar, p2_ar = calc_ankle_joint(get_largest_CC(ankle_tibia_r), get_largest_CC(ankle_fibula_r))
         mask_al, p1_al, p2_al = calc_ankle_joint(get_largest_CC(ankle_tibia_l), get_largest_CC(ankle_fibula_l))
 
+        # calculate torsion
         tors_ar = np.arctan((p2_ar[1] - p1_ar[1]) / (p2_ar[2] - p1_ar[2])) * 180 / np.pi
         tors_al = np.arctan((p2_al[1] - p1_al[1]) / (p1_al[2] - p2_al[2])) * 180 / np.pi
+
+        # calculate plafond malleolus angle
+        mask_pma_ar, pma_r = calc_pma(get_largest_CC(ankle_tibia_r), get_largest_CC(ankle_fibula_r))
+        mask_pma_al, pma_l = calc_pma(get_largest_CC(ankle_tibia_l), get_largest_CC(ankle_fibula_l))
 
         values['ankle_right'] = tors_al  # swap left and right because right image side is left patient side
         values['ankle_left'] = tors_ar
 
         values['tibia_right'] = tors_ktl + tors_al
         values['tibia_left'] = tors_ktr + tors_ar
+
+        values['pma_right'] = pma_l
+        values['pma_left'] = pma_r
 
         mask_ankle = np.concatenate((mask_al, mask_ar), axis=2)
         mask_ankle = sitk.GetImageFromArray(mask_ankle)
@@ -188,6 +225,14 @@ def main(file, aug):
         mask_ankle.SetOrigin(ankle_seg.GetOrigin())
         mask_ankle.SetDirection(ankle_seg.GetDirection())
         sitk.WriteImage(mask_ankle, str(i / f'ankle_ref_{aug}.nii.gz'))
+
+        mask_ankle_pma = np.concatenate((mask_pma_al, mask_pma_ar), axis=2)
+        mask_ankle_pma = sitk.GetImageFromArray(mask_ankle_pma)
+        mask_ankle_pma.CopyInformation(ankle_seg)
+        mask_ankle_pma.SetSpacing(ankle_seg.GetSpacing())
+        mask_ankle_pma.SetOrigin(ankle_seg.GetOrigin())
+        mask_ankle_pma.SetDirection(ankle_seg.GetDirection())
+        sitk.WriteImage(mask_ankle_pma, str(i / f'ankle_ref_pma_{aug}.nii.gz'))
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc ankle failed for {i}, {e}')
 
@@ -203,6 +248,9 @@ if __name__ == '__main__':
     /path/to/file should point to a directory containing the segmentation masks hip_seg.nii.gz, knee_seg.nii.gz, ankle_seg.nii.gz. For an example, refer to the torsion_format directory in the project data repository (see readme file).
     For batch processing, use the run_torsion_detection.py script.
     """
+
+    #example call: python torsion_detection_nnunet.py -aug mr -file "C:\Users\krist\OneDrive - Students RWTH Aachen University\studium\hiwi\hiwi_uka\data_uka_angle_calc\augmentation-paper\torsion_format\ankle\reference\Patient_2"
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('-aug', type=str, default='mr', help='augmentation type')
     parser.add_argument('-file', type=str, help='file')
