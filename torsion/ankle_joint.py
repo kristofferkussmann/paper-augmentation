@@ -2,7 +2,7 @@ from skimage.measure import regionprops, label
 import numpy as np
 #from . import get_centroid, write_image, bresenhamline
 from torsion import get_centroid, write_image, bresenhamline
-from mask import get_contour_points
+from mask import get_contour_points, get_most_distal_layer
 from vector import get_angle_between_vector_and_plane
 
 
@@ -38,46 +38,6 @@ def get_layer_with_largest_diameter(mask):
     # find index of the layer with the biggest diameter
     indices = np.argsort(diameter)
     return indices[-1]
-
-
-def get_most_distal_layer(mask):
-    """
-    returns the layer with the most distal point of the mask
-
-    current constraint: this function assumes that the z-coordinate of the most distal layer is 0
-
-    Parameters
-    ----------
-    mask : array
-        mask as 3D array
-
-    Returns
-    -------
-    int
-        z coord of the layer
-    """
-
-    # z-coordinate of the layer with the most distal point of the mask
-    z_coord_layer = 0
-
-    # check whether slice with index 0 or max_index is the most distal slice of the MR image
-    # assume that in the most distal slice of the measurement there is no mask but in the most proximal slice there is
-    if mask[len(mask) - 1].max() == 1:
-        # max_index corresponds to most proximal layer
-        # start iterating from index 0
-        for k in range(len(mask)):
-            if mask[k].max() == 1:
-                z_coord_layer = k
-                break
-    else:
-        # max_index corresponds to most distal layer
-        # start iterating from max_index
-        for k in range(len(mask) - 1, -1, -1):
-            if mask[k].max() == 1:
-                z_coord_layer = k
-                break
-
-    return z_coord_layer
 
 
 def calc_ankle_joint(mask_t, mask_f, out_t=None):
@@ -152,6 +112,8 @@ def calc_pma(mask_t, mask_f, out_t=None):
     pma: plafond malleolus angle in degrees
     """
 
+    # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE BIGGEST DIAMETER OF THE TIBIA
+
     # find index of the layer with the biggest diameter of the tibia
     layer_plane = get_layer_with_largest_diameter(mask_t)
     # get the contour points of the mask in this layer
@@ -167,6 +129,9 @@ def calc_pma(mask_t, mask_f, out_t=None):
     normal_vec = np.cross(vec_1, vec_2)
     # normalize the normal vector
     normal_vec = normal_vec / np.linalg.norm(normal_vec)
+
+
+    # SECOND STEP: FIND THE REFERENCE LINE BETWEEN MOST DISTAL POINTS OF TIBIA AND FIBULA
 
     # find index of the layer with the most distal point of the tibia
     dist_layer_tibia = get_most_distal_layer(mask_t)

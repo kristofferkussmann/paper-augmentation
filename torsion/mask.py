@@ -248,3 +248,43 @@ def sep_seg(mask, value):
     mask_right[:, :, :int((mask.shape[2] - 1) / 2)] = 0
 
     return mask_left, mask_right
+
+
+def get_most_distal_layer(mask):
+    """
+    returns the layer with the most distal point of the mask
+
+    current constraint: this function assumes that the z-coordinate of the most distal layer is 0
+
+    Parameters
+    ----------
+    mask : array
+        mask as 3D array
+
+    Returns
+    -------
+    int
+        z coord of the layer
+    """
+
+    # z-coordinate of the layer with the most distal point of the mask
+    z_coord_layer = 0
+
+    # check whether slice with index 0 or max_index is the most distal slice of the MR image
+    # assume that in the most distal slice of the measurement there is no mask but in the most proximal slice there is
+    if mask[len(mask) - 1].max() == 1:
+        # max_index corresponds to most proximal layer
+        # start iterating from index 0
+        for k in range(len(mask)):
+            if mask[k].max() == 1:
+                z_coord_layer = k
+                break
+    else:
+        # max_index corresponds to most distal layer
+        # start iterating from max_index
+        for k in range(len(mask) - 1, -1, -1):
+            if mask[k].max() == 1:
+                z_coord_layer = k
+                break
+
+    return z_coord_layer
