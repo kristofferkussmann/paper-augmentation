@@ -22,7 +22,7 @@ increase_stack_size(8 * 1024 * 1024)
 # sys.path.append('/home/simon/Work/mri-augmentation/Code')
 sys.path.append('C:/Users/krist/paper_augmentation/paper-augmentation')
 
-from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma #calc_ccd
+from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma, calc_ccd
 import numpy as np
 import SimpleITK as sitk
 from skimage.measure import label
@@ -123,8 +123,8 @@ def main(file, aug):
             tors_kfl = np.arctan((p1_kfl[1] - p2_kfl[1]) / (p1_kfl[2] - p2_kfl[2])) * 180 / np.pi
 
         # calculate caput-collum-diaphyseal angle
-        """ mask_ccd_r, ccd_r = calc_ccd(get_largest_CC(hip_r), get_largest_CC(knee_r))
-        mask_ccd_l, ccd_l = calc_ccd(get_largest_CC(hip_l), get_largest_CC(knee_l)) """
+        mask_ccd_r, ccd_r = calc_ccd(get_largest_CC(hip_r), get_largest_CC(knee_r))
+        mask_ccd_l, ccd_l = calc_ccd(get_largest_CC(hip_l), get_largest_CC(knee_l))
 
         values['knee_femur_right'] = tors_kfl  # swap left and right because right image side is left patient side
         values['knee_femur_left'] = tors_kfr
@@ -132,8 +132,8 @@ def main(file, aug):
         values['femur_right'] = tors_hl + tors_kfl
         values['femur_left'] = tors_hr + tors_kfr
 
-        """ values['ccd_right'] = ccd_l
-        values['ccd_left'] = ccd_r """
+        values['ccd_right'] = ccd_l
+        values['ccd_left'] = ccd_r
 
         mask_knee = np.concatenate((mask_kfl, mask_kfr), axis=2)
         mask_knee = sitk.GetImageFromArray(mask_knee)
@@ -143,13 +143,13 @@ def main(file, aug):
         mask_knee.SetDirection(knee_seg.GetDirection())
         sitk.WriteImage(mask_knee, str(i / f'knee_femur_ref_{aug}.nii.gz'))
 
-        """ mask_ccd = np.concatenate((mask_ccd_l, mask_ccd_r), axis=2)
+        mask_ccd = np.concatenate((mask_ccd_l, mask_ccd_r), axis=2)
         mask_ccd = sitk.GetImageFromArray(mask_ccd)
-        mask_ccd.CopyInformation(knee_seg)
+        #mask_ccd.CopyInformation(knee_seg)
         mask_ccd.SetSpacing(knee_seg.GetSpacing())
         mask_ccd.SetOrigin(knee_seg.GetOrigin())
         mask_ccd.SetDirection(knee_seg.GetDirection())
-        sitk.WriteImage(mask_knee_ccd, str(i / f'hip_knee_femur_ref_ccd_{aug}.nii.gz')) """
+        sitk.WriteImage(mask_ccd, str(i / f'hip_knee_femur_ref_ccd_{aug}.nii.gz'))
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc knee/f failed for {i}, {e}')
 

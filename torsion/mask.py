@@ -345,22 +345,28 @@ def get_most_proximal_layer_knee_femur(mask):
     # z-coordinate of the layer with the most proximal point of the mask
     z_coord_layer = 0
 
-    # assume that the diameter of the knee femur in the most distal slice is larger than in the most proximal slice
+    # assume that the diameter of the knee femur in the more distal slices is larger than in the proximal slices
 
     # get first candidate for most proximal slice
     for k in range(len(mask)):
         if mask[k].max() == 1:
             z_candidate_1 = k
+            # around the knee joint, there might be a slice where there still is a small femur mask
+            # increase z_coordinate by 2 to get a larger femur mask for the comparison of the two candidates
+            # otherwise it might happen that the size of the most proximal and most distal mask does not differ significantly
+            z_candidate_1_1 = k + 2
             break
     
     # get second candidate for most proximal slice
     for k in range(len(mask) - 1, -1, -1):
         if mask[k].max() == 1:
             z_candidate_2 = k
+            # see motivation when getting first candidate
+            z_candidate_2_1 = k - 2
             break
     
-    diameter_1 = get_diameter(mask[z_candidate_1])
-    diameter_2 = get_diameter(mask[z_candidate_2])
+    diameter_1 = get_diameter(mask[z_candidate_1_1])
+    diameter_2 = get_diameter(mask[z_candidate_2_1])
 
     if diameter_1 < diameter_2:
         z_coord_layer = z_candidate_1

@@ -263,17 +263,20 @@ def calc_ccd(mask_hf, mask_kf, out_t=None):
     
 
 
-    # determine the dimensions of one of the masks
+    # determine the dimensions of the masks
     hf_shape = mask_hf.shape
+    kf_shape = mask_kf.shape
     # define the size of the gap (number of slices between hip and knee stack along the z-axis)
-    gap_size = 15
+    gap_size = 30
     # create the gap with zeros
     gap_shape = (gap_size, hf_shape[1], hf_shape[2])
     gap = np.zeros(gap_shape)
     # concatenate the masks with the gap in between along the z-axis
     mask = np.concatenate((mask_kf, gap, mask_hf), axis=0)
 
-    # NEED TO MODIFY THE COORDINATES OF THE CENTROIDS FOR PLOTTING THE LINE
+    # adjust the z-coordinates of the reference points to the gap
+    com_dist_hip = (com_dist_hip[0] + gap_size + kf_shape[0], com_dist_hip[1], com_dist_hip[2])
+    com_prox_knee = (com_prox_knee[0], com_prox_knee[1], com_prox_knee[2])
 
     # add reference line between most distal points of the fibula and tibia to the mask
     line = bresenhamline([com_dist_hip], com_prox_knee, max_iter=-1)
