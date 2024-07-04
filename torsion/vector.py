@@ -26,7 +26,7 @@ def round_to_int(pt):
 
 
 def get_angle_between_vector_and_plane(vector, normal_vector):
-    """ calculates the angle between a vector and a plane given the vector and the normal of the plane """
+    """ calculates the angle between a vector and a plane given the vector and the normal vector of the plane """
     # calculate the dot product of the vector and the normal vector
     dot_product = np.dot(vector, normal_vector)
     

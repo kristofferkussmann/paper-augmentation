@@ -374,3 +374,106 @@ def get_most_proximal_layer_knee_femur(mask):
         z_coord_layer = z_candidate_2
 
     return z_coord_layer
+
+
+def get_length(hip_reference: sitk.Image, knee_reference: sitk.Image, ankle_reference: sitk.Image, hip_seg: sitk.Image, knee_seg: sitk.Image, ankle_seg: sitk.Image):
+    """
+    calculates the length of the femur and tibia of both legs
+
+    Parameters
+    ----------
+    hip_reference: sitk.Image
+        image of the hip region
+    knee_reference:sitk.Image
+        image of the knee region
+    ankle_reference:sitk.Image
+        image of the ankle region
+    hip_seg: sitk.Image
+        segmentation of the hip region
+    knee_seg:sitk.Image
+        segmentation of the knee region
+    ankle_seg:sitk.Image
+        segmentation of the ankle region
+
+    Returns
+    -------
+    left_femur: length of the left femur
+    right_femur: length of the right femur
+    left_tibia: length of the left tibia
+    right_tibia: length of the right tibia
+    left: length left femur + length left tibia
+    right: length right femur + length right tibia
+    """
+
+    #logger = logging.getLogger('app')
+
+    hip_array = sitk.GetArrayFromImage(hip_seg)
+    knee_array = sitk.GetArrayFromImage(knee_seg)
+    ankle_array = sitk.GetArrayFromImage(ankle_seg)
+
+    # HIP
+
+    left_arr_hip = hip_array[:, :, :int(hip_array.shape[2] / 2)]
+    right_arr_hip = hip_array[:, :, int(hip_array.shape[2] / 2):]
+
+    left_proximal_femur_point = np.argwhere(left_arr_hip == 1)[-1] # probably better to find center point
+    right_proximal_femur_point = np.argwhere(right_arr_hip == 1)[-1]
+    
+    # KNEE
+    # assume label number of femur is 1 and label number of tibia is 2
+
+    left_arr_knee = knee_array[:, :, :int(knee_array.shape[2] / 2)]
+    right_arr_knee = knee_array[:, :, int(knee_array.shape[2] / 2):]
+
+    left_distal_femur_point = np.argwhere(left_arr_knee == 1)[0]
+    right_distal_femur_point = np.argwhere(right_arr_knee == 1)[0]
+
+    left_proximal_tibia_point = np.argwhere(left_arr_knee == 2)[-1]
+    right_proximal_tibia_point = np.argwhere(right_arr_knee == 2)[-1]
+
+    # ANKLE
+    # assume label number of tibia is 1 and label number of fibula is 2
+
+    left_arr_ankle = ankle_array[:, :, :int(ankle_array.shape[2] / 2)]
+    right_arr_ankle = ankle_array[:, :, int(ankle_array.shape[2] / 2):]
+
+    left_distal_tibia_point = np.argwhere(left_arr_ankle == 1)[0]
+    right_distal_tibia_point = np.argwhere(right_arr_ankle == 1)[0]
+
+    # CALCULATE LENGTH
+
+    left_femur_length = np.linalg.norm(translate_image_coord_to_world_coord(left_proximal_femur_point, hip_reference) - 
+                            translate_image_coord_to_world_coord(left_distal_femur_point, knee_reference))
+
+    right_femur_length = np.linalg.norm(translate_image_coord_to_world_coord(right_proximal_femur_point, hip_reference) - 
+                            translate_image_coord_to_world_coord(right_distal_femur_point, knee_reference))     
+
+    left_tibia_length = np.linalg.norm(translate_image_coord_to_world_coord(left_proximal_tibia_point, knee_reference) - 
+                            translate_image_coord_to_world_coord(left_distal_tibia_point, ankle_reference))
+
+    right_tibia_length = np.linalg.norm(translate_image_coord_to_world_coord(right_proximal_tibia_point, knee_reference) - 
+                            translate_image_coord_to_world_coord(right_distal_tibia_point, ankle_reference))
+
+    return {'left_femur': left_femur_length, 'right_femur': right_femur_length, 'left_tibia': left_tibia_length, 
+            'right_tibia': right_tibia_length, 'left': left_femur_length + left_tibia_length, 'right': right_femur_length +
+            right_tibia_length}
+
+
+def translate_image_coord_to_world_coord(image_coord: np.array, reference_image: sitk.Image) -> np.array:
+    """
+    translates image to world coordinates
+    """
+    #logger = logging.getLogger('app')
+    image_coord = np.array(list(reversed(image_coord)))
+    D_ = reference_image.GetDirection()
+    D = np.empty((3,3))
+    D[0] = np.array(D_[0:3])
+    D[1] = np.array(D_[3:6])
+    D[2] = np.array(D_[6:])
+    S = reference_image.GetSpacing()
+    O = reference_image.GetOrigin()
+    S2 = np.zeros((3,3))
+    np.fill_diagonal(S2, S)
+
+    world_coordinates = D @ S2 @ image_coord.T + O
+    return world_coordinates

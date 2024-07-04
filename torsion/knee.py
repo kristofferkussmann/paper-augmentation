@@ -6,7 +6,7 @@ from torsion import write_image, bresenhamline
 #    rotate_mask_dorsal_pts, transform_pt, get_centroid
 from torsion.mask import get_contour_points, get_dorsal_mask_pt, find_notch, \
     get_layer_with_biggest_convex_area, rotate_pt, rotate_mask_vec_parallel, \
-    rotate_mask_dorsal_pts, transform_pt, get_centroid, get_most_distal_layer_hip, get_most_proximal_layer_knee_femur
+    rotate_mask_dorsal_pts, transform_pt, get_centroid, get_most_distal_layer_hip, get_most_proximal_layer_knee_femur, translate_image_coord_to_world_coord
 #from .vector import get_vector, length, round_to_int
 from torsion.vector import get_vector, length, round_to_int
 
@@ -221,7 +221,7 @@ def calc_knee(bone, mask, path_out=None, path_out_ro=None, start_pt=None, thresh
         return mask, start_pt_orig, end_pt_orig
 
 
-def calc_ccd(mask_hf, mask_kf, out_t=None):
+def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_t=None):
     """
     calculates the required points and the reference lines on hip joint and knee joint level
     for the measurement of the caput-collum-diaphyseal angle
@@ -232,6 +232,12 @@ def calc_ccd(mask_hf, mask_kf, out_t=None):
         mask of the femur segmentation on hip level as 3D array
     mask_kf : array
         mask of the femur segmentation on knee level as 3D array
+    hip_reference: sitk.Image
+        MR image of the hip
+    knee_reference: sitk.Image
+        MR image of the knee
+    length_femur:
+        length of the femur
     out_t : str
         output path where the DICOM image file of the mask(femur)
         with the required points and the reference lines should be saved
@@ -255,8 +261,11 @@ def calc_ccd(mask_hf, mask_kf, out_t=None):
     # transform 2D mask to 3D mask
     com_prox_knee = (prox_layer_knee, com_prox_knee[0], com_prox_knee[1])
 
-    # calculate vector based on these two centroids
-    vec_femur_shaft = np.array([com_prox_knee[0]-com_dist_hip[0], com_prox_knee[1]-com_dist_hip[1], com_prox_knee[2]-com_dist_hip[2]])
+    # convert the two centroids to world coordinates
+    com_dist_hip_world = translate_image_coord_to_world_coord(com_dist_hip, hip_reference)
+    com_prox_knee_world = translate_image_coord_to_world_coord(com_prox_knee, knee_reference)
+    # calculate vector based on the two centroids
+    vec_femur_shaft = np.array([com_prox_knee_world[0]-com_dist_hip_world[0], com_prox_knee_world[1]-com_dist_hip_world[1], com_prox_knee_world[2]-com_dist_hip_world[2]])
 
 
     # SECOND STEP: FIND THE REFERENCE LINE THROUGH THE FEMORAL NECK
@@ -266,8 +275,13 @@ def calc_ccd(mask_hf, mask_kf, out_t=None):
     # determine the dimensions of the masks
     hf_shape = mask_hf.shape
     kf_shape = mask_kf.shape
+    # convert the length of the femur to a number of slices with the same length
+    # BE CAREFUL: THIS IS JUST AN APPROXIMATION SINCE THE VECTOR USED TO CALCULATE THE LENGTH OF THE FEMUR WAS NOT PERPENDICULAR TO THE SURFACE
+    spacing = knee_reference.GetSpacing()
+    z_spacing = spacing[2]
+    # NEED TO IMPLEMENT THE CORRECT CALCULATION OF THE GAP SIZE. THE CURRENT IMPLEMENTATION IS NOT CORRECT!
     # define the size of the gap (number of slices between hip and knee stack along the z-axis)
-    gap_size = 30
+    gap_size = int(length_femur / z_spacing)
     # create the gap with zeros
     gap_shape = (gap_size, hf_shape[1], hf_shape[2])
     gap = np.zeros(gap_shape)

@@ -22,7 +22,8 @@ increase_stack_size(8 * 1024 * 1024)
 # sys.path.append('/home/simon/Work/mri-augmentation/Code')
 sys.path.append('C:/Users/krist/paper_augmentation/paper-augmentation')
 
-from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma, calc_ccd
+from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma, calc_ccd#, calc_mikulicz
+from torsion import get_length
 import numpy as np
 import SimpleITK as sitk
 from skimage.measure import label
@@ -65,11 +66,25 @@ def main(file, aug):
     tors_al = np.nan
     tors_ar = np.nan
 
+    # load MRI measurements to later calculate the length of femur and tibia
+    hip_mri = sitk.ReadImage(str(i / ('hip.nii.gz')))
+    knee_mri = sitk.ReadImage(str(i / ('knee.nii.gz')))
+    ankle_mri = sitk.ReadImage(str(i / ('ankle.nii.gz')))
+
     hip_seg = sitk.ReadImage(str(i / ('hip_seg.nii.gz' if aug == 'mr' else f'hip_seg_{aug}.nii.gz')))
     knee_seg = sitk.ReadImage(str(i / ('knee_seg.nii.gz' if aug == 'mr' else f'knee_seg_{aug}.nii.gz')))
     ankle_seg = sitk.ReadImage(str(i / ('ankle_seg.nii.gz' if aug == 'mr' else f'ankle_seg_{aug}.nii.gz')))
 
     values = dict()
+
+    # GET LENGTH OF THE LEFT AND RIGHT FEMUR AND TIBIA
+    lengths = get_length(hip_mri, knee_mri, ankle_mri, hip_seg, knee_seg, ankle_seg)
+    length_fl = lengths['left_femur']
+    length_fr = lengths['right_femur']
+    length_tl = lengths['left_tibia']
+    length_tr = lengths['right_tibia']
+    length_left = lengths['left']
+    length_right = lengths['right']
 
     # HIP
     spacing = hip_seg.GetSpacing()
@@ -101,7 +116,7 @@ def main(file, aug):
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc hip failed for {i}, {e}')
 
-    # KNEE FEMUR (caculation of the CCD angle is also run in this section)
+    # KNEE FEMUR (calculation of the CCD angle is also run in this section)
     knee_array = sitk.GetArrayFromImage(knee_seg)
     knee_l = knee_array[:, :, :int(knee_array.shape[2] / 2)]
     knee_r = knee_array[:, :, int(knee_array.shape[2] / 2):]
@@ -123,8 +138,8 @@ def main(file, aug):
             tors_kfl = np.arctan((p1_kfl[1] - p2_kfl[1]) / (p1_kfl[2] - p2_kfl[2])) * 180 / np.pi
 
         # calculate caput-collum-diaphyseal angle
-        mask_ccd_r, ccd_r = calc_ccd(get_largest_CC(hip_r), get_largest_CC(knee_r))
-        mask_ccd_l, ccd_l = calc_ccd(get_largest_CC(hip_l), get_largest_CC(knee_l))
+        mask_ccd_r, ccd_r = calc_ccd(get_largest_CC(hip_r), get_largest_CC(knee_r), hip_mri, knee_mri, length_fr)
+        mask_ccd_l, ccd_l = calc_ccd(get_largest_CC(hip_l), get_largest_CC(knee_l), hip_mri, knee_mri, length_fl)
 
         values['knee_femur_right'] = tors_kfl  # swap left and right because right image side is left patient side
         values['knee_femur_left'] = tors_kfr
@@ -187,6 +202,8 @@ def main(file, aug):
         print(f'Calc knee/t failed for {i}, {e}')
 
     # ANKLE
+    # (calculation of the PMA angle is also run in this section)
+    # (calculation of the Mikulicz line is also run in this section)
     ankle_array = sitk.GetArrayFromImage(ankle_seg)
     ankle_l = ankle_array[:, :, :int(ankle_array.shape[2] / 2)]
     ankle_r = ankle_array[:, :, int(ankle_array.shape[2] / 2):]
@@ -208,6 +225,12 @@ def main(file, aug):
         # calculate plafond malleolus angle
         mask_pma_ar, pma_r = calc_pma(get_largest_CC(ankle_tibia_r), get_largest_CC(ankle_fibula_r))
         mask_pma_al, pma_l = calc_pma(get_largest_CC(ankle_tibia_l), get_largest_CC(ankle_fibula_l))
+
+        # calculate the Mikulicz line
+        # the centers of the femoral heads are already calculated in the HIP section above
+        # p1_hr is the center of the right femoral head, p1_hl is the center of the left femoral neck
+        #mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(ankle_tibia_r))
+        #mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(ankle_tibia_l))
 
         values['ankle_right'] = tors_al  # swap left and right because right image side is left patient side
         values['ankle_left'] = tors_ar
@@ -233,6 +256,14 @@ def main(file, aug):
         mask_ankle_pma.SetOrigin(ankle_seg.GetOrigin())
         mask_ankle_pma.SetDirection(ankle_seg.GetDirection())
         sitk.WriteImage(mask_ankle_pma, str(i / f'ankle_ref_pma_{aug}.nii.gz'))
+
+        """ mask_mikulicz = np.concatenate((mask_mikulicz_l, mask_mikulicz_r), axis=2)
+        mask_mikulicz = sitk.GetImageFromArray(mask_mikulicz)
+        #mask_mikulicz.CopyInformation(ankle_seg)
+        mask_mikulicz.SetSpacing(ankle_seg.GetSpacing())
+        mask_mikulicz.SetOrigin(ankle_seg.GetOrigin())
+        mask_mikulicz.SetDirection(ankle_seg.GetDirection())
+        sitk.WriteImage(mask_mikulicz, str(i / f'hip_ankle_ref_mikulicz_{aug}.nii.gz')) """
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc ankle failed for {i}, {e}')
 

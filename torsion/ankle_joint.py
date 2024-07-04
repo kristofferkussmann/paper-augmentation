@@ -112,9 +112,9 @@ def calc_pma(mask_t, mask_f, out_t=None):
     pma: plafond malleolus angle in degrees
     """
 
-    # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE BIGGEST DIAMETER OF THE TIBIA
+    # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE LARGEST DIAMETER OF THE TIBIA
 
-    # find index of the layer with the biggest diameter of the tibia
+    # find index of the layer with the largest diameter of the tibia
     layer_plane = get_layer_with_largest_diameter(mask_t)
     # get the contour points of the mask in this layer
     contour_pts = get_contour_points(mask_t[layer_plane])
@@ -137,7 +137,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
     dist_layer_tibia = get_most_distal_layer_ankle(mask_t)
     # find index of the layer with the most distal point of the fibula
     dist_layer_fibula = get_most_distal_layer_ankle(mask_f)
-    # calculate center of mass of tibia und fibula on the corresponding layers
+    # calculate center of mass of tibia and fibula in the corresponding layers
     com_tibia = get_centroid(mask_t[dist_layer_tibia])
     com_fibula = get_centroid(mask_f[dist_layer_fibula])
 
@@ -182,3 +182,70 @@ def calc_pma(mask_t, mask_f, out_t=None):
         write_image(mask, out_t)
 
     return mask, pma
+
+#def calc_mikulicz(center_fh, mask_hf, mask_at, out_t=None):
+    """
+    calculates the required points and the reference line on hip and ankle joint level
+    for the Mikulicz line
+
+    Parameters
+    ----------
+    center_fh : array
+        center of the femoral head as 3D coordinates with axis orientation z,y,x
+    mask_hf : array
+        mask of the femur segmentation on hip level as 3D array
+    mask_at : array
+        mask of the tibia segmentation on ankle level as 3D array
+    out_t : str
+        output path where the DICOM image file of the mask(tibia and fibula)
+        with the required points and the reference lines should be saved
+
+    Returns
+    -------
+    
+    """
+
+"""     # FIRST STEP: FIND THE REFERENCE LINE BETWEEN THE CENTER OF THE FEMORAL HEAD AND THE CENTER OF THE DISTAL TIBIA
+
+    # find index of the layer with the largest diameter of the tibia
+    layer_tibia = get_layer_with_largest_diameter(mask_at)
+    # calculate center of mass of tibia in the corresponding layers
+    com_tibia = get_centroid(mask_at[layer_tibia])
+
+    # transform points from layer mask to 3D mask
+    com_tibia = (layer_tibia, com_tibia[0], com_tibia[1])
+
+
+
+    # SECOND STEP:
+
+
+
+    # determine the dimensions of the masks
+    hf_shape = mask_hf.shape
+    at_shape = mask_at.shape
+    # define the size of the gap (number of slices between hip and knee stack along the z-axis)
+    gap_size = 60
+    # create the gap with zeros
+    gap_shape = (gap_size, hf_shape[1], hf_shape[2])
+    gap = np.zeros(gap_shape)
+    # concatenate the masks with the gap in between along the z-axis
+    mask = np.concatenate((mask_at, gap, mask_hf), axis=0)
+
+    # adjust the z-coordinates of the reference points to the gap
+    center_fh = (center_fh[0] + gap_size + at_shape[0], center_fh[1], center_fh[2])
+    com_tibia = (com_tibia[0], com_tibia[1], com_tibia[2])
+
+    # add reference line between most distal points of the fibula and tibia to the mask
+    line = bresenhamline([center_fh], com_tibia, max_iter=-1)
+    for k in range(len(line)):
+        mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
+
+    # mark centroids in the mask
+    mask[center_fh] = 5
+    mask[com_tibia] = 5
+
+    if out_t is not None:
+        write_image(mask, out_t)
+
+    return mask """
