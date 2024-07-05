@@ -22,7 +22,7 @@ increase_stack_size(8 * 1024 * 1024)
 # sys.path.append('/home/simon/Work/mri-augmentation/Code')
 sys.path.append('C:/Users/krist/paper_augmentation/paper-augmentation')
 
-from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma, calc_ccd#, calc_mikulicz
+from torsion import calc_hip, calc_knee, calc_ankle_joint, calc_pma, calc_ccd, calc_mikulicz
 from torsion import get_length
 import numpy as np
 import SimpleITK as sitk
@@ -229,8 +229,11 @@ def main(file, aug):
         # calculate the Mikulicz line
         # the centers of the femoral heads are already calculated in the HIP section above
         # p1_hr is the center of the right femoral head, p1_hl is the center of the left femoral neck
-        #mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(ankle_tibia_r))
-        #mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(ankle_tibia_l))
+        knee_l = knee_array[:, :, :int(knee_array.shape[2] / 2)]
+        knee_r = knee_array[:, :, int(knee_array.shape[2] / 2):]
+        # CURRENT ERROR: THE TWO MASKS MIGHT HAVE A DIFFERENT SHAPE ALONG THE Z-AXIS
+        mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(knee_r), get_largest_CC(ankle_tibia_r), hip_mri, knee_mri, ankle_mri, length_fr, length_tr)
+        mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(knee_l), get_largest_CC(ankle_tibia_l), hip_mri, knee_mri, ankle_mri, length_fl, length_tl)
 
         values['ankle_right'] = tors_al  # swap left and right because right image side is left patient side
         values['ankle_left'] = tors_ar

@@ -5,4 +5,4 @@ from bresenham_slope import bresenhamline
 from mask import get_mask, get_centroid, write_image, get_length
 from hip import calc_hip
 from knee import calc_knee, calc_ccd
-from ankle_joint import calc_ankle_joint, calc_pma#, calc_mikulicz
+from ankle_joint import calc_ankle_joint, calc_pma, calc_mikulicz

@@ -2,7 +2,7 @@ from skimage.measure import regionprops, label
 import numpy as np
 #from . import get_centroid, write_image, bresenhamline
 from torsion import get_centroid, write_image, bresenhamline
-from mask import get_contour_points, get_most_distal_layer_ankle
+from mask import get_contour_points, get_most_distal_layer_ankle, translate_image_coord_to_world_coord
 from vector import get_angle_between_vector_and_plane
 
 
@@ -109,7 +109,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
 
     Returns
     -------
-    pma: plafond malleolus angle in degrees
+    pma : plafond malleolus angle in degrees
     """
 
     # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE LARGEST DIAMETER OF THE TIBIA
@@ -183,7 +183,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
 
     return mask, pma
 
-#def calc_mikulicz(center_fh, mask_hf, mask_at, out_t=None):
+def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_reference, ankle_reference, length_femur, length_tibia, out_t=None):
     """
     calculates the required points and the reference line on hip and ankle joint level
     for the Mikulicz line
@@ -194,8 +194,20 @@ def calc_pma(mask_t, mask_f, out_t=None):
         center of the femoral head as 3D coordinates with axis orientation z,y,x
     mask_hf : array
         mask of the femur segmentation on hip level as 3D array
+    mask_k : array
+        mask of the femur and tibia segmentation on knee level as 3D array
     mask_at : array
         mask of the tibia segmentation on ankle level as 3D array
+    hip_reference : sitk.Image
+        MR image of the hip
+    knee_reference : sitk.Image
+        MR image of the knee
+    ankle_reference : sitk.Image
+        MR image of the ankle
+    length_femur :
+        length of the femur
+    length_tibia :
+        length of the tibia
     out_t : str
         output path where the DICOM image file of the mask(tibia and fibula)
         with the required points and the reference lines should be saved
@@ -205,7 +217,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
     
     """
 
-"""     # FIRST STEP: FIND THE REFERENCE LINE BETWEEN THE CENTER OF THE FEMORAL HEAD AND THE CENTER OF THE DISTAL TIBIA
+    # FIRST STEP: FIND THE REFERENCE LINE BETWEEN THE CENTER OF THE FEMORAL HEAD AND THE CENTER OF THE DISTAL TIBIA
 
     # find index of the layer with the largest diameter of the tibia
     layer_tibia = get_layer_with_largest_diameter(mask_at)
@@ -215,25 +227,41 @@ def calc_pma(mask_t, mask_f, out_t=None):
     # transform points from layer mask to 3D mask
     com_tibia = (layer_tibia, com_tibia[0], com_tibia[1])
 
+    # transform the two centroids to world coordinates
+    center_fh_world = translate_image_coord_to_world_coord(center_fh, hip_reference)
+    com_tibia_world = translate_image_coord_to_world_coord(com_tibia, ankle_reference)
+
+    # calculate the vector corresponding to the Mikulicz line based on the two centroids
+    vec_mikulicz_line = np.array([com_tibia_world[0]-center_fh_world[0], com_tibia_world[1]-center_fh_world[1], com_tibia_world[2]-center_fh_world[2]])
 
 
-    # SECOND STEP:
+    # SECOND STEP: FIND THE CENTER OF THE KNEE JOINT; CALCULATE ITS DISTANCE TO THE MIKULICZ LINE
 
 
 
     # determine the dimensions of the masks
     hf_shape = mask_hf.shape
+    k_shape = mask_k.shape
     at_shape = mask_at.shape
-    # define the size of the gap (number of slices between hip and knee stack along the z-axis)
-    gap_size = 60
-    # create the gap with zeros
-    gap_shape = (gap_size, hf_shape[1], hf_shape[2])
-    gap = np.zeros(gap_shape)
+    # convert the length of the femur and of the tibia to a number of slices with the same length
+    # BE CAREFUL: THIS IS JUST AN APPROXIMATION SINCE THE VECTOR USED TO CALCULATE THE LENGTH OF THE FEMUR AND TIBIA WAS NOT PERPENDICULAR TO THE SURFACE
+    spacing = knee_reference.GetSpacing()
+    z_spacing = spacing[2]
+    # NEED TO IMPLEMENT THE CORRECT CALCULATION OF THE GAP SIZE. THE CURRENT IMPLEMENTATION IS NOT CORRECT!
+    # define the size of the gap between the hip and the knee stack (number of slices along the z-axis)
+    gap_size_hk = int(length_femur / z_spacing)
+    # define the size of the gap between the knee and the ankle stack (number of slices along the z-axis)
+    gap_size_ka = int(length_tibia / z_spacing)
+    # fill the gaps with zeros
+    gap_shape_hk = (gap_size_hk, hf_shape[1], hf_shape[2])
+    gap_shape_ka = (gap_size_ka, at_shape[1], at_shape[2])
+    gap_hk = np.zeros(gap_shape_hk)
+    gap_ka = np.zeros(gap_shape_ka)
     # concatenate the masks with the gap in between along the z-axis
-    mask = np.concatenate((mask_at, gap, mask_hf), axis=0)
+    mask = np.concatenate((mask_at, gap_ka, mask_k, gap_hk, mask_hf), axis=0)
 
     # adjust the z-coordinates of the reference points to the gap
-    center_fh = (center_fh[0] + gap_size + at_shape[0], center_fh[1], center_fh[2])
+    center_fh = (center_fh[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], center_fh[1], center_fh[2])
     com_tibia = (com_tibia[0], com_tibia[1], com_tibia[2])
 
     # add reference line between most distal points of the fibula and tibia to the mask
@@ -248,4 +276,4 @@ def calc_pma(mask_t, mask_f, out_t=None):
     if out_t is not None:
         write_image(mask, out_t)
 
-    return mask """
+    return mask

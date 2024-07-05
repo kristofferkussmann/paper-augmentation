@@ -261,7 +261,7 @@ def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_
     # transform 2D mask to 3D mask
     com_prox_knee = (prox_layer_knee, com_prox_knee[0], com_prox_knee[1])
 
-    # convert the two centroids to world coordinates
+    # transform the two centroids to world coordinates
     com_dist_hip_world = translate_image_coord_to_world_coord(com_dist_hip, hip_reference)
     com_prox_knee_world = translate_image_coord_to_world_coord(com_prox_knee, knee_reference)
     # calculate vector based on the two centroids
@@ -282,7 +282,7 @@ def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_
     # NEED TO IMPLEMENT THE CORRECT CALCULATION OF THE GAP SIZE. THE CURRENT IMPLEMENTATION IS NOT CORRECT!
     # define the size of the gap (number of slices between hip and knee stack along the z-axis)
     gap_size = int(length_femur / z_spacing)
-    # create the gap with zeros
+    # fill the gap with zeros
     gap_shape = (gap_size, hf_shape[1], hf_shape[2])
     gap = np.zeros(gap_shape)
     # concatenate the masks with the gap in between along the z-axis
