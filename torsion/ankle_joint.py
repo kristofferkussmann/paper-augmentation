@@ -2,8 +2,8 @@ from skimage.measure import regionprops, label
 import numpy as np
 #from . import get_centroid, write_image, bresenhamline
 from torsion import get_centroid, write_image, bresenhamline
-from mask import get_contour_points, get_most_distal_layer_ankle, translate_image_coord_to_world_coord
-from vector import get_angle_between_vector_and_plane
+from mask import get_contour_points, get_most_distal_layer_ankle, translate_image_coord_to_world_coord, get_convex_area
+from vector import get_angle_between_vectors
 
 
 def get_layer_with_largest_diameter(mask):
@@ -92,7 +92,7 @@ def calc_ankle_joint(mask_t, mask_f, out_t=None):
     return mask, com_tibia, com_fibula
 
 
-def calc_pma(mask_t, mask_f, out_t=None):
+def calc_pma(mask_t, mask_f, ankle_left, out_t=None):
     """
     calculates the required points and the reference lines on ankle joint level
     for the measurement of the plafond malleolus angle
@@ -112,7 +112,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
     pma : plafond malleolus angle in degrees
     """
 
-    # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE LARGEST DIAMETER OF THE TIBIA
+    """ # FIRST STEP: SPAN THE REFERENCE PLANE IN THE LAYER WITH THE LARGEST DIAMETER OF THE TIBIA
 
     # find index of the layer with the largest diameter of the tibia
     layer_plane = get_layer_with_largest_diameter(mask_t)
@@ -123,6 +123,68 @@ def calc_pma(mask_t, mask_f, out_t=None):
     p1_plane = np.array([layer_plane, contour_pts[0][0], contour_pts[1][0]])
     p2_plane = np.array([layer_plane, contour_pts[0][int(len(contour_pts[0])/3)], contour_pts[1][int(len(contour_pts[1])/3)]])
     p3_plane = np.array([layer_plane, contour_pts[0][int(2*len(contour_pts[0])/3)], contour_pts[1][int(2*len(contour_pts[1])/3)]])
+    # calculate the normal vector of the plane
+    vec_1 = p1_plane - p2_plane
+    vec_2 = p1_plane - p3_plane
+    normal_vec = np.cross(vec_1, vec_2)
+    # normalize the normal vector
+    normal_vec = normal_vec / np.linalg.norm(normal_vec) """
+    
+    # FIRST STEP: SPAN THE REFERENCE PLANE BETWEEN TWO POINTS IN THE LATERAL THIRD OF THE TIBIA JOINT SURFACE AND ONE POINT IN THE MEDIAL THIRD OF THE TIBIAL JOINT SURFACE
+
+    # find index of the layer with the largest diameter of the tibia
+    layer_largest_diameter = get_layer_with_largest_diameter(mask_t)
+    # get the contour points of the mask in this layer
+    contour_pts = get_contour_points(mask_t[layer_largest_diameter])
+    # combine y and x coordinates into a list of tuples
+    contour_points = list(zip(contour_pts[0], contour_pts[1]))
+    # sort the list of tuples by the x-coordinate (second element of the tuple)
+    contour_pts_sorted = sorted(contour_points, key=lambda point: point[1])
+
+    # find first two contour points in the lateral third of the tibia joint surface
+    if ankle_left == False:
+        p1_plane = np.array([layer_largest_diameter, contour_pts_sorted[len(contour_pts_sorted)-1][0], contour_pts_sorted[len(contour_pts_sorted)-1][1]])
+        p2_plane = np.array([layer_largest_diameter, contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/6)][0], contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/6)][1]])
+        #p1_plane = np.array([layer_largest_diameter, contour_pts[0][int(len(contour_pts[0])/3)], contour_pts[1][int(len(contour_pts[1])/3)]])
+        #p2_plane = np.array([layer_largest_diameter, contour_pts[0][int(2*len(contour_pts[0])/3)], contour_pts[1][int(2*len(contour_pts[1])/3)]])
+    else:
+        p1_plane = np.array([layer_largest_diameter, contour_pts_sorted[0][0], contour_pts_sorted[0][1]])
+        p2_plane = np.array([layer_largest_diameter, contour_pts_sorted[int(len(contour_pts_sorted)/6)][0], contour_pts_sorted[int(len(contour_pts_sorted)/6)][1]])
+        #p1_plane = np.array([layer_largest_diameter, contour_pts[0][0], contour_pts[1][0]])
+        #p2_plane = np.array([layer_largest_diameter, contour_pts[0][int(len(contour_pts[0])/3)], contour_pts[1][int(len(contour_pts[1])/3)]])
+    
+    # check which layer is the next distal layer
+    if get_convex_area(mask_t[layer_largest_diameter-1]) < get_convex_area(mask_t[layer_largest_diameter+1]):
+        next_distal_layer = layer_largest_diameter - 1
+    else:
+        next_distal_layer = layer_largest_diameter + 1
+
+    # check in the next distal layer whether it can still be considered as tibia joint surface
+    # assume that the mask needs to have at least 4/7 of the convex area of the mask with the largest diameter to still be considered as tibia joint surface
+    if get_convex_area(mask_t[next_distal_layer]) > 4/7 * get_convex_area(mask_t[layer_largest_diameter]):
+        # get the contour points of the mask in this layer
+        contour_pts = get_contour_points(mask_t[next_distal_layer])
+        # combine y and x coordinates into a list of tuples
+        contour_points = list(zip(contour_pts[0], contour_pts[1]))
+        # sort the list of tuples by the x-coordinate (second element of the tuple)
+        contour_pts_sorted = sorted(contour_points, key=lambda point: point[1])
+
+        # find the third point for the plane in the medial third of the tibia joint surface
+        if ankle_left == False:
+            p3_plane = np.array([next_distal_layer, contour_pts_sorted[int(len(contour_pts_sorted)/3)][0], contour_pts_sorted[int(len(contour_pts_sorted)/3)][1]])
+            #p3_plane = np.array([next_distal_layer, contour_pts[0][0], contour_pts[1][0]])
+        else:
+            p3_plane = np.array([next_distal_layer, contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/3)][0], contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/3)][1]])
+            #p3_plane = np.array([next_distal_layer, contour_pts[0][int(2*len(contour_pts[0])/3)], contour_pts[1][int(2*len(contour_pts[1])/3)]])
+    # otherwise take the third reference point for the plane also from the layer with the largest diameter
+    else:
+        if ankle_left == False:
+            p3_plane = np.array([layer_largest_diameter, contour_pts_sorted[int(len(contour_pts_sorted)/3)][0], contour_pts_sorted[int(len(contour_pts_sorted)/3)][1]])
+            #p3_plane = np.array([layer_largest_diameter, contour_pts[0][0], contour_pts[1][0]])
+        else:
+            p3_plane = np.array([layer_largest_diameter, contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/3)][0], contour_pts_sorted[len(contour_pts_sorted)-int(len(contour_pts_sorted)/3)][1]])
+            #p3_plane = np.array([layer_largest_diameter, contour_pts[0][int(2*len(contour_pts[0])/3)], contour_pts[1][int(2*len(contour_pts[1])/3)]])
+
     # calculate the normal vector of the plane
     vec_1 = p1_plane - p2_plane
     vec_2 = p1_plane - p3_plane
@@ -176,7 +238,7 @@ def calc_pma(mask_t, mask_f, out_t=None):
 
     # calculate the Plafond Malleolus Angle
     vec = np.array([com_fibula[0]-com_tibia[0], com_fibula[1]-com_tibia[1], com_fibula[2]-com_tibia[2]])
-    pma = get_angle_between_vector_and_plane(vec, normal_vec)
+    pma = 90 - get_angle_between_vectors(vec, normal_vec)
 
     if out_t is not None:
         write_image(mask, out_t)

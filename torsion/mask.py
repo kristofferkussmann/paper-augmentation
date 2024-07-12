@@ -258,6 +258,14 @@ def get_diameter(mask):
     diameter = props[0].equivalent_diameter
     return diameter
 
+def get_convex_area(mask):
+    """
+    returns the convex area of the given 2D mask
+    """
+    props = regionprops(label(mask))
+    convex_area = props[0].convex_area
+    return convex_area
+
 
 def get_most_distal_layer_ankle(mask):
     """

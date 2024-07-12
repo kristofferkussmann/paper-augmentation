@@ -221,7 +221,7 @@ def calc_knee(bone, mask, path_out=None, path_out_ro=None, start_pt=None, thresh
         return mask, start_pt_orig, end_pt_orig
 
 
-def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_t=None):
+#def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_t=None):
     """
     calculates the required points and the reference lines on hip joint and knee joint level
     for the measurement of the caput-collum-diaphyseal angle
@@ -247,7 +247,7 @@ def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_
     ccd: caput-collum-diaphyseal angle in degrees
     """
 
-    # FIRST STEP: FIND THE REFERENCE LINE THROUGH THE FEMUR SHAFT
+    """ # FIRST STEP: FIND THE REFERENCE LINE THROUGH THE FEMUR SHAFT
 
     # find the centroid of the most distal femur mask around the hip
     dist_layer_hip = get_most_distal_layer_hip(mask_hf)
@@ -303,4 +303,4 @@ def calc_ccd(mask_hf, mask_kf, hip_reference, knee_reference, length_femur, out_
 
     ccd = 0
 
-    return mask, ccd
+    return mask, ccd """
