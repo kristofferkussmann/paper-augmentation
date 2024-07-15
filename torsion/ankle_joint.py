@@ -245,7 +245,7 @@ def calc_pma(mask_t, mask_f, ankle_left, out_t=None):
 
     return mask, pma
 
-def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_reference, ankle_reference, length_femur, length_tibia, out_t=None):
+def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, knee_reference, ankle_reference, length_femur, length_tibia, out_t=None):
     """
     calculates the required points and the reference line on hip and ankle joint level
     for the Mikulicz line
@@ -256,8 +256,10 @@ def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_refer
         center of the femoral head as 3D coordinates with axis orientation z,y,x
     mask_hf : array
         mask of the femur segmentation on hip level as 3D array
-    mask_k : array
-        mask of the femur and tibia segmentation on knee level as 3D array
+    mask_kf : array
+        mask of the femur segmentation on knee level as 3D array
+    mask_kt : array
+        mask of the tibia segmentation on knee level as 3D array
     mask_at : array
         mask of the tibia segmentation on ankle level as 3D array
     hip_reference : sitk.Image
@@ -298,12 +300,19 @@ def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_refer
 
 
     # SECOND STEP: FIND THE CENTER OF THE KNEE JOINT; CALCULATE ITS DISTANCE TO THE MIKULICZ LINE
+    # get the centroid of the slice used for the femur reference point
 
+    # get the centroid of the slice used for the tibia reference point
+    y_dim, x_dim = mask_at[layer_tibia].shape
+    center_tr = (layer_tibia, y_dim // 2, x_dim // 2)
+
+    # transform the two reference points to world coordinates
+    center_tr_world = translate_image_coord_to_world_coord(center_tr, ankle_reference)
 
 
     # determine the dimensions of the masks
     hf_shape = mask_hf.shape
-    k_shape = mask_k.shape
+    k_shape = mask_kf.shape
     at_shape = mask_at.shape
     # convert the length of the femur and of the tibia to a number of slices with the same length
     # BE CAREFUL: THIS IS JUST AN APPROXIMATION SINCE THE VECTOR USED TO CALCULATE THE LENGTH OF THE FEMUR AND TIBIA WAS NOT PERPENDICULAR TO THE SURFACE
@@ -319,6 +328,8 @@ def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_refer
     gap_shape_ka = (gap_size_ka, at_shape[1], at_shape[2])
     gap_hk = np.zeros(gap_shape_hk)
     gap_ka = np.zeros(gap_shape_ka)
+    # add mask of the femur and tibia around the knee
+    mask_k = mask_kf + mask_kt
     # concatenate the masks with the gap in between along the z-axis
     mask = np.concatenate((mask_at, gap_ka, mask_k, gap_hk, mask_hf), axis=0)
 
@@ -334,6 +345,7 @@ def calc_mikulicz(center_fh, mask_hf, mask_k, mask_at, hip_reference, knee_refer
     # mark centroids in the mask
     mask[center_fh] = 5
     mask[com_tibia] = 5
+    mask[center_tr] = 5
 
     if out_t is not None:
         write_image(mask, out_t)

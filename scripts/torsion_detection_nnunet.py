@@ -231,9 +231,13 @@ def main(file, aug):
         # p1_hr is the center of the right femoral head, p1_hl is the center of the left femoral neck
         knee_l = knee_array[:, :, :int(knee_array.shape[2] / 2)]
         knee_r = knee_array[:, :, int(knee_array.shape[2] / 2):]
+        knee_lf = np.where(knee_l == 1, 1, 0)  # set tibia to 0
+        knee_rf = np.where(knee_r == 1, 1, 0)
+        knee_lt = np.where(knee_l == 2, 1, 0)  # set femur to 0
+        knee_rt = np.where(knee_r == 2, 1, 0)
         # CURRENT ERROR: THE TWO MASKS MIGHT HAVE A DIFFERENT SHAPE ALONG THE Z-AXIS
-        mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(knee_r), get_largest_CC(ankle_tibia_r), hip_mri, knee_mri, ankle_mri, length_fr, length_tr)
-        mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(knee_l), get_largest_CC(ankle_tibia_l), hip_mri, knee_mri, ankle_mri, length_fl, length_tl)
+        mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(knee_rf), get_largest_CC(knee_rt), get_largest_CC(ankle_tibia_r), hip_mri, knee_mri, ankle_mri, length_fr, length_tr)
+        mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(knee_lf), get_largest_CC(knee_lt), get_largest_CC(ankle_tibia_l), hip_mri, knee_mri, ankle_mri, length_fl, length_tl)
 
         values['ankle_right'] = tors_al  # swap left and right because right image side is left patient side
         values['ankle_left'] = tors_ar
@@ -260,13 +264,21 @@ def main(file, aug):
         mask_ankle_pma.SetDirection(ankle_seg.GetDirection())
         sitk.WriteImage(mask_ankle_pma, str(i / f'ankle_ref_pma_{aug}.nii.gz'))
 
-        """ mask_mikulicz = np.concatenate((mask_mikulicz_l, mask_mikulicz_r), axis=2)
+        # FOR DEBUGGING since leg length calculation is not working correctly right now, SEE ERROR DESCRIPTION A FEW LINES ABOVE
+        if mask_mikulicz_l.shape[0] < mask_mikulicz_r.shape[0]:
+            gap_shape = (mask_mikulicz_r.shape[0]-mask_mikulicz_l.shape[0], mask_mikulicz_l.shape[1], mask_mikulicz_l.shape[2])
+            mask_mikulicz_l = np.concatenate((mask_mikulicz_l, np.zeros(gap_shape)), axis=0)
+        elif mask_mikulicz_l.shape[0] > mask_mikulicz_r.shape[0]:
+            gap_shape = (mask_mikulicz_l.shape[0]-mask_mikulicz_r.shape[0], mask_mikulicz_r.shape[1], mask_mikulicz_r.shape[2])
+            mask_mikulicz_r = np.concatenate((mask_mikulicz_r, np.zeros(gap_shape)), axis=0)
+
+        mask_mikulicz = np.concatenate((mask_mikulicz_l, mask_mikulicz_r), axis=2)
         mask_mikulicz = sitk.GetImageFromArray(mask_mikulicz)
         #mask_mikulicz.CopyInformation(ankle_seg)
         mask_mikulicz.SetSpacing(ankle_seg.GetSpacing())
         mask_mikulicz.SetOrigin(ankle_seg.GetOrigin())
         mask_mikulicz.SetDirection(ankle_seg.GetDirection())
-        sitk.WriteImage(mask_mikulicz, str(i / f'hip_ankle_ref_mikulicz_{aug}.nii.gz')) """
+        sitk.WriteImage(mask_mikulicz, str(i / f'hip_ankle_ref_mikulicz_{aug}.nii.gz'))
     except (TypeError, UnboundLocalError, IndexError, ValueError, AssertionError) as e:
         print(f'Calc ankle failed for {i}, {e}')
 
