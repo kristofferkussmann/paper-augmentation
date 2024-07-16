@@ -300,13 +300,17 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
 
 
     # SECOND STEP: FIND THE CENTER OF THE KNEE JOINT; CALCULATE ITS DISTANCE TO THE MIKULICZ LINE
-    # get the centroid of the slice used for the femur reference point
+    # get the centroid of the slice used for the femur reference point (center of the femoral head)
+    layer_femur = center_fh[0]
+    y_dim, x_dim = mask_hf[layer_femur].shape
+    center_fr = (layer_femur, y_dim // 2, x_dim // 2)
 
     # get the centroid of the slice used for the tibia reference point
     y_dim, x_dim = mask_at[layer_tibia].shape
     center_tr = (layer_tibia, y_dim // 2, x_dim // 2)
 
     # transform the two reference points to world coordinates
+    center_fr_world = translate_image_coord_to_world_coord(center_fr, hip_reference)
     center_tr_world = translate_image_coord_to_world_coord(center_tr, ankle_reference)
 
 
@@ -335,16 +339,25 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
 
     # adjust the z-coordinates of the reference points to the gap
     center_fh = (center_fh[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], center_fh[1], center_fh[2])
+    center_fr = (center_fr[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], center_fr[1], center_fr[2])
     com_tibia = (com_tibia[0], com_tibia[1], com_tibia[2])
+    center_tr = (center_tr[0], center_tr[1], center_tr[2])
 
-    # add reference line between most distal points of the fibula and tibia to the mask
+
+    # add Mikulicz line between center of femoral head and tibia joint surface center to the mask
     line = bresenhamline([center_fh], com_tibia, max_iter=-1)
+    for k in range(len(line)):
+        mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
+
+    # add reference line between reference points of the femur and tibia to the mask
+    line = bresenhamline([center_fr], center_tr, max_iter=-1)
     for k in range(len(line)):
         mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
 
     # mark centroids in the mask
     mask[center_fh] = 5
     mask[com_tibia] = 5
+    mask[center_fr] = 5
     mask[center_tr] = 5
 
     if out_t is not None:
