@@ -2,7 +2,7 @@ from skimage.measure import regionprops, label
 import numpy as np
 #from . import get_centroid, write_image, bresenhamline
 from torsion import get_centroid, write_image, bresenhamline
-from mask import get_contour_points, get_most_distal_layer_ankle, translate_image_coord_to_world_coord, get_convex_area
+from mask import get_contour_points, get_most_distal_layer_ankle, translate_image_coord_to_world_coord, get_convex_area, get_layer_with_biggest_convex_area
 from vector import get_angle_between_vectors
 
 
@@ -154,10 +154,11 @@ def calc_pma(mask_t, mask_f, ankle_left, out_t=None):
         #p2_plane = np.array([layer_largest_diameter, contour_pts[0][int(len(contour_pts[0])/3)], contour_pts[1][int(len(contour_pts[1])/3)]])
     
     # check which layer is the next distal layer
-    if get_convex_area(mask_t[layer_largest_diameter-1]) < get_convex_area(mask_t[layer_largest_diameter+1]):
-        next_distal_layer = layer_largest_diameter - 1
-    else:
-        next_distal_layer = layer_largest_diameter + 1
+    #if get_convex_area(mask_t[layer_largest_diameter-1]) < get_convex_area(mask_t[layer_largest_diameter+1]):
+    #    next_distal_layer = layer_largest_diameter - 1
+    #else:
+    #    next_distal_layer = layer_largest_diameter + 1
+    next_distal_layer = layer_largest_diameter - 1
 
     # check in the next distal layer whether it can still be considered as tibia joint surface
     # assume that the mask needs to have at least 4/7 of the convex area of the mask with the largest diameter to still be considered as tibia joint surface
@@ -278,11 +279,12 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
 
     Returns
     -------
+    dist :
+        distance between the middle of the knee joint and the Mikulicz line
     
     """
 
     # FIRST STEP: FIND THE REFERENCE LINE BETWEEN THE CENTER OF THE FEMORAL HEAD AND THE CENTER OF THE DISTAL TIBIA
-
     # find index of the layer with the largest diameter of the tibia
     layer_tibia = get_layer_with_largest_diameter(mask_at)
     # calculate center of mass of tibia in the corresponding layers
@@ -292,27 +294,56 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
     com_tibia = (layer_tibia, com_tibia[0], com_tibia[1])
 
     # transform the two centroids to world coordinates
-    center_fh_world = translate_image_coord_to_world_coord(center_fh, hip_reference)
-    com_tibia_world = translate_image_coord_to_world_coord(com_tibia, ankle_reference)
+    # reverse the order of the coordinates to z,y,x since translate_image_to_world_coord returns the coordinates in the order x,y,z
+    center_fh_world = np.array(list(reversed(translate_image_coord_to_world_coord(center_fh, hip_reference))))
+    com_tibia_world = np.array(list(reversed(translate_image_coord_to_world_coord(com_tibia, ankle_reference))))
 
     # calculate the vector corresponding to the Mikulicz line based on the two centroids
     vec_mikulicz_line = np.array([com_tibia_world[0]-center_fh_world[0], com_tibia_world[1]-center_fh_world[1], com_tibia_world[2]-center_fh_world[2]])
+    print("length Mikulicz line: ", np.linalg.norm(vec_mikulicz_line))
 
+    # SECOND STEP: FIND THE CENTER OF THE KNEE JOINT
+    # get the centroid of the slice with the femur condyles used for the torsion reference line
+    layer_femur_k = get_layer_with_biggest_convex_area(mask_kf)
+    # calculate the centroid of the mask in this layer
+    com_femur_k = get_centroid(mask_kf[layer_femur_k])
+    # transform points from layer mask to 3D mask
+    com_femur_k = (layer_femur_k, com_femur_k[0], com_femur_k[1])
 
-    # SECOND STEP: FIND THE CENTER OF THE KNEE JOINT; CALCULATE ITS DISTANCE TO THE MIKULICZ LINE
-    # get the centroid of the slice used for the femur reference point (center of the femoral head)
-    layer_femur = center_fh[0]
-    y_dim, x_dim = mask_hf[layer_femur].shape
-    center_fr = (layer_femur, y_dim // 2, x_dim // 2)
-
-    # get the centroid of the slice used for the tibia reference point
-    y_dim, x_dim = mask_at[layer_tibia].shape
-    center_tr = (layer_tibia, y_dim // 2, x_dim // 2)
+    # get the centroid of the slice with the tibia condyles used for the torsion reference line
+    layer_tibia_k = get_layer_with_biggest_convex_area(mask_kt)
+    # calculate the centroid of the mask in this layer
+    com_tibia_k = get_centroid(mask_kt[layer_tibia_k])
+    # transform points from layer mask to 3D mask
+    com_tibia_k = (layer_tibia_k, com_tibia_k[0], com_tibia_k[1])
 
     # transform the two reference points to world coordinates
-    center_fr_world = translate_image_coord_to_world_coord(center_fr, hip_reference)
-    center_tr_world = translate_image_coord_to_world_coord(center_tr, ankle_reference)
+    # reverse the order of the coordinates to z,y,x since translate_image_to_world_coord returns the coordinates in the order x,y,z
+    com_femur_k_world = np.array(list(reversed(translate_image_coord_to_world_coord(com_femur_k, knee_reference))))
+    com_tibia_k_world = np.array(list(reversed(translate_image_coord_to_world_coord(com_tibia_k, knee_reference))))
 
+    # span vector between these two centroids and assume its middle as the middle of the knee joint
+    vec_knee_joint = np.array([com_femur_k_world[0]-com_tibia_k_world[0], com_femur_k_world[1]-com_tibia_k_world[1], com_femur_k_world[2]-com_tibia_k_world[2]])
+    # calculate middle of knee joint; take into account that z-coordinates might be negative in world coordinates and that the com of the femur might have
+    # a more negative z-coordinate than the com of the tibia
+    if com_femur_k_world[0] < com_tibia_k_world[0]:
+        mid_knee_joint = com_tibia_k_world + vec_knee_joint/2
+    else:
+        mid_knee_joint = com_femur_k_world - vec_knee_joint/2
+
+
+    # THIRD STEP: CALCULATE THE DISTANCE BETWEEN THE KNEE JOINT CENTER AND THE MIKULICZ LINE
+    # see the derivation of the formula e.g. at: https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
+    # vector between middle of the knee joint and center of mass of the tibia
+    v1 = np.array([mid_knee_joint[0]-com_tibia_world[0], mid_knee_joint[1]-com_tibia_world[1], mid_knee_joint[2]-com_tibia_world[2]])
+    # vector between middle of the knee joint and center of the femoral head
+    v2 = np.array([mid_knee_joint[0]-center_fh_world[0], mid_knee_joint[1]-center_fh_world[1], mid_knee_joint[2]-center_fh_world[2]])
+    # vector between center of the femoral head and center of mass of the tibia, i.e. Mikulicz line
+    v3 = np.array([center_fh_world[0]-com_tibia_world[0], center_fh_world[1]-com_tibia_world[1], center_fh_world[2]-com_tibia_world[2]])
+
+    # apply formula to calculate distance between middle of the knee joint and the Mikulicz line
+    dist = np.linalg.norm(np.cross(v1,v2)) / np.linalg.norm(v3)
+    # NEED TO IMPLEMENT: DETERMINE ON WHICH SIDE OF THE MIKULICZ LINE THE CENTER OF THE KNEE JOINT IS FOR DIAGNOSIS
 
     # determine the dimensions of the masks
     hf_shape = mask_hf.shape
@@ -334,14 +365,24 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
     gap_ka = np.zeros(gap_shape_ka)
     # add mask of the femur and tibia around the knee
     mask_k = mask_kf + mask_kt
+
+    # mark centroids in the mask
+    mask_k[com_femur_k] = 5
+    mask_k[com_tibia_k] = 5
+
+    # add reference line between reference points of the femur and tibia to the mask
+    line = bresenhamline([com_femur_k], com_tibia_k, max_iter=-1)
+    for k in range(len(line)):
+        mask_k[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
+
     # concatenate the masks with the gap in between along the z-axis
     mask = np.concatenate((mask_at, gap_ka, mask_k, gap_hk, mask_hf), axis=0)
 
     # adjust the z-coordinates of the reference points to the gap
     center_fh = (center_fh[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], center_fh[1], center_fh[2])
-    center_fr = (center_fr[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], center_fr[1], center_fr[2])
+    #com_femur_k = (com_femur_k[0] + gap_size_hk + k_shape[0] + gap_size_ka + at_shape[0], com_femur_k[1], com_femur_k[2])
     com_tibia = (com_tibia[0], com_tibia[1], com_tibia[2])
-    center_tr = (center_tr[0], center_tr[1], center_tr[2])
+    #com_tibia_k = (com_tibia_k[0], com_tibia_k[1], com_tibia_k[2])
 
 
     # add Mikulicz line between center of femoral head and tibia joint surface center to the mask
@@ -350,17 +391,17 @@ def calc_mikulicz(center_fh, mask_hf, mask_kf, mask_kt, mask_at, hip_reference, 
         mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
 
     # add reference line between reference points of the femur and tibia to the mask
-    line = bresenhamline([center_fr], center_tr, max_iter=-1)
-    for k in range(len(line)):
-        mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
+    #line = bresenhamline([com_femur_k], com_tibia_k, max_iter=-1)
+    #for k in range(len(line)):
+    #    mask[int(line[k, 0]), int(line[k, 1]), int(line[k, 2])] = 3
 
     # mark centroids in the mask
     mask[center_fh] = 5
     mask[com_tibia] = 5
-    mask[center_fr] = 5
-    mask[center_tr] = 5
+    #mask[com_femur_k] = 5
+    #mask[com_tibia_k] = 5
 
     if out_t is not None:
         write_image(mask, out_t)
 
-    return mask
+    return mask, dist

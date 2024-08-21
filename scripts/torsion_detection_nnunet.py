@@ -236,8 +236,8 @@ def main(file, aug):
         knee_lt = np.where(knee_l == 2, 1, 0)  # set femur to 0
         knee_rt = np.where(knee_r == 2, 1, 0)
         # CURRENT ERROR: THE TWO MASKS MIGHT HAVE A DIFFERENT SHAPE ALONG THE Z-AXIS
-        mask_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(knee_rf), get_largest_CC(knee_rt), get_largest_CC(ankle_tibia_r), hip_mri, knee_mri, ankle_mri, length_fr, length_tr)
-        mask_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(knee_lf), get_largest_CC(knee_lt), get_largest_CC(ankle_tibia_l), hip_mri, knee_mri, ankle_mri, length_fl, length_tl)
+        mask_mikulicz_r, dist_mikulicz_r = calc_mikulicz(p1_hr, mask_hr, get_largest_CC(knee_rf), get_largest_CC(knee_rt), get_largest_CC(ankle_tibia_r), hip_mri, knee_mri, ankle_mri, length_fr, length_tr)
+        mask_mikulicz_l, dist_mikulicz_l = calc_mikulicz(p1_hl, mask_hl, get_largest_CC(knee_lf), get_largest_CC(knee_lt), get_largest_CC(ankle_tibia_l), hip_mri, knee_mri, ankle_mri, length_fl, length_tl)
 
         values['ankle_right'] = tors_al  # swap left and right because right image side is left patient side
         values['ankle_left'] = tors_ar
@@ -247,6 +247,9 @@ def main(file, aug):
 
         values['pma_right'] = pma_l
         values['pma_left'] = pma_r
+
+        values['dist_mikulicz_right'] = dist_mikulicz_l
+        values['dist_mikulicz_left'] = dist_mikulicz_r
 
         mask_ankle = np.concatenate((mask_al, mask_ar), axis=2)
         mask_ankle = sitk.GetImageFromArray(mask_ankle)

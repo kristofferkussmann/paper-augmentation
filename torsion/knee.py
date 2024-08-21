@@ -255,15 +255,16 @@ def calc_knee(bone, mask, path_out=None, path_out_ro=None, start_pt=None, thresh
     # transform 2D mask to 3D mask
     com_dist_hip = (dist_layer_hip, com_dist_hip[0], com_dist_hip[1])
 
-    # find the centroid of the most proximal femur mask around the hip
+    # find the centroid of the most proximal femur mask around the knee
     prox_layer_knee = get_most_proximal_layer_knee_femur(mask_kf)
     com_prox_knee = get_centroid(mask_kf[prox_layer_knee])
     # transform 2D mask to 3D mask
     com_prox_knee = (prox_layer_knee, com_prox_knee[0], com_prox_knee[1])
 
     # transform the two centroids to world coordinates
-    com_dist_hip_world = translate_image_coord_to_world_coord(com_dist_hip, hip_reference)
-    com_prox_knee_world = translate_image_coord_to_world_coord(com_prox_knee, knee_reference)
+    # reverse the order of the coordinates to z,y,x since translate_image_to_world_coord returns the coordinates in the order x,y,z
+    com_dist_hip_world = np.array(list(reversed(translate_image_coord_to_world_coord(com_dist_hip, hip_reference))))
+    com_prox_knee_world = np.array(list(reversed(translate_image_coord_to_world_coord(com_prox_knee, knee_reference))))
     # calculate vector based on the two centroids
     vec_femur_shaft = np.array([com_prox_knee_world[0]-com_dist_hip_world[0], com_prox_knee_world[1]-com_dist_hip_world[1], com_prox_knee_world[2]-com_dist_hip_world[2]])
 
